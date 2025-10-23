@@ -19,8 +19,8 @@ export const M_METAOBJECT_DEF_CREATE = `
 
 // entries (upsert bằng create + update nếu tồn tại)
 export const Q_METAOBJECT_BY_HANDLE = `
-  query MOBH($type: String!, $handle: String!) {
-    metaobjectByHandle(type: $type, handle: $handle) { id handle type }
+  query MOBH($handle: MetaobjectHandleInput!) {
+    metaobjectByHandle(handle: $handle) { id handle type }
   }
 `;
 

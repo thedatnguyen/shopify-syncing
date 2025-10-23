@@ -46,33 +46,31 @@ export async function upsertMetaobjectDefinition(admin: ShopifyAdmin, def: MODef
 }
 
 export async function upsertMetaobjectEntry(admin: ShopifyAdmin, entry: MOEntry) {
-  // find existing
-  const found: any = await admin.gql(Q_METAOBJECT_BY_HANDLE, { type: entry.type, handle: entry.handle });
+  console.log(`[MO] upsert type=${entry.type} handle=${entry.handle} (start)`);
+
+  const found: any = await admin.gql(Q_METAOBJECT_BY_HANDLE, {
+    handle: { type: entry.type, handle: entry.handle }
+  });
   const id = found?.data?.metaobjectByHandle?.id as string | undefined;
 
   const fields = entry.fields
-    .filter(f => f.value != null && f.value !== "" && f.type !== "file_reference")
-    .map(f => ({ key: f.key, type: f.type, value: String(f.value) }));
+    .filter(f => f.value != null && f.value !== "" /* && f.type !== "file_reference" */)
+    .map(f => ({ key: f.key, value: String(f.value) }));
 
   if (!id) {
-    // create
-    const res:any = await admin.gql(M_METAOBJECT_CREATE, { input: { type: entry.type, handle: entry.handle, fields } });
+    const res:any = await admin.gql(M_METAOBJECT_CREATE, {
+      input: { type: entry.type, handle: entry.handle, fields }
+    });
     const ue = res?.data?.metaobjectCreate?.userErrors || [];
-    if (ue.length) {
-      const msg = ue.map((x:any)=>x.message).join(" | ");
-      if (/already exists/i.test(msg)) return "SKIP";
-      throw new Error("MO create error: " + msg);
-    }
+    if (ue.length) throw new Error("MO create error: " + ue.map((x:any)=>x.message).join(" | "));
+    console.log(`[MO] created type=${entry.type} handle=${entry.handle}`);
     await sleep(120);
     return "CREATED";
   } else {
-    // update (overwrite fields)
     const res:any = await admin.gql(M_METAOBJECT_UPDATE, { id, fields });
     const ue = res?.data?.metaobjectUpdate?.userErrors || [];
-    if (ue.length) {
-      const msg = ue.map((x:any)=>x.message).join(" | ");
-      throw new Error("MO update error: " + msg);
-    }
+    if (ue.length) throw new Error("MO update error: " + ue.map((x:any)=>x.message).join(" | "));
+    console.log(`[MO] updated type=${entry.type} handle=${entry.handle}`);
     await sleep(120);
     return "UPDATED";
   }

@@ -37,38 +37,38 @@ import {
 
 /* ---------- helpers: lookups ---------- */
 async function getShopId(admin: ShopifyAdmin) {
-  const res:any = await admin.gql(Q_SHOP_ID);
+  const res: any = await admin.gql(Q_SHOP_ID);
   return res?.data?.shop?.id as string;
 }
 async function getProductId(admin: ShopifyAdmin, handle: string) {
-  const r:any = await admin.gql(Q_PRODUCT_BY_HANDLE, { handle });
+  const r: any = await admin.gql(Q_PRODUCT_BY_HANDLE, { handle });
   return r?.data?.productByHandle?.id as string | undefined;
 }
 async function getVariantIdBySku(admin: ShopifyAdmin, sku: string) {
   if (!sku) return undefined;
-  const r:any = await admin.gql(Q_VARIANT_BY_SKU, { q: `sku:${JSON.stringify(sku).slice(1,-1)}` });
+  const r: any = await admin.gql(Q_VARIANT_BY_SKU, { q: `sku:${JSON.stringify(sku).slice(1, -1)}` });
   const node = r?.data?.productVariants?.edges?.[0]?.node;
   return node?.id as string | undefined;
 }
 async function getCollectionId(admin: ShopifyAdmin, handle: string) {
-  const r:any = await admin.gql(Q_COLLECTION_BY_HANDLE, { handle });
+  const r: any = await admin.gql(Q_COLLECTION_BY_HANDLE, { handle });
   return r?.data?.collectionByHandle?.id as string | undefined;
 }
 async function getPageId(admin: ShopifyAdmin, handle: string) {
-  const r:any = await admin.gql(Q_PAGE_BY_HANDLE, { handle });
+  const r: any = await admin.gql(Q_PAGE_BY_HANDLE, { handle });
   return r?.data?.pageByHandle?.id as string | undefined;
 }
 async function getBlogId(admin: ShopifyAdmin, handle: string) {
-  const r:any = await admin.gql(Q_BLOG_BY_HANDLE, { handle });
+  const r: any = await admin.gql(Q_BLOG_BY_HANDLE, { handle });
   return r?.data?.blogByHandle?.id as string | undefined;
 }
 async function getArticleId(admin: ShopifyAdmin, blogHandle: string, handle: string) {
-  const r:any = await admin.gql(Q_ARTICLE_BY_HANDLE, { blogHandle, handle });
+  const r: any = await admin.gql(Q_ARTICLE_BY_HANDLE, { blogHandle, handle });
   return r?.data?.articleByHandle?.id as string | undefined;
 }
 async function getCustomerIdByEmail(admin: ShopifyAdmin, email: string) {
   if (!email) return undefined;
-  const r:any = await admin.gql(Q_CUSTOMER_BY_EMAIL, { q: `email:${JSON.stringify(email).slice(1,-1)}` });
+  const r: any = await admin.gql(Q_CUSTOMER_BY_EMAIL, { q: `email:${JSON.stringify(email).slice(1, -1)}` });
   const node = r?.data?.customers?.edges?.[0]?.node;
   return node?.id as string | undefined;
 }
@@ -105,9 +105,9 @@ async function fetchExistingDefs(admin: ShopifyAdmin) {
   return { existingMfKeys, existingMoTypes };
 }
 
-function toValidations(list:any[]) {
+function toValidations(list: any[]) {
   if (!Array.isArray(list)) return [];
-  return list.map(v => v?.name ? ({ name: String(v.name), ...(v.value!=null?{value:String(v.value)}:{}) }) : null).filter(Boolean);
+  return list.map(v => v?.name ? ({ name: String(v.name), ...(v.value != null ? { value: String(v.value) } : {}) }) : null).filter(Boolean);
 }
 
 async function importDefinitionsFromFiles(admin: ShopifyAdmin, sourceDomain: string) {
@@ -119,14 +119,14 @@ async function importDefinitionsFromFiles(admin: ShopifyAdmin, sourceDomain: str
   const lines2 = (await import("fs")).readFileSync(input2, "utf8").split("\n").filter(Boolean);
   const lines = [...lines1, ...lines2];
 
-  type MfDef = { name:string; namespace:string; key:string; ownerType:string; type:string; description:string; validations:any[] };
-  type MoDef = { name:string; type:string; access:{storefront:string}; fieldDefinitions:any[] };
+  type MfDef = { name: string; namespace: string; key: string; ownerType: string; type: string; description: string; validations: any[] };
+  type MoDef = { name: string; type: string; access: { storefront: string }; fieldDefinitions: any[] };
 
   const mfDefs = new Map<string, MfDef>();
   const moDefs = new Map<string, MoDef>();
 
   for (const line of lines) {
-    let obj:any; try { obj = JSON.parse(line); } catch { continue; }
+    let obj: any; try { obj = JSON.parse(line); } catch { continue; }
     if (!obj) continue;
 
     if (obj.namespace && obj.key && obj.ownerType && (obj.type || obj.type?.name)) {
@@ -152,7 +152,7 @@ async function importDefinitionsFromFiles(admin: ShopifyAdmin, sourceDomain: str
           name: obj.name || t,
           type: t,
           access: { storefront: "PUBLIC_READ" },
-          fieldDefinitions: (obj.fieldDefinitions || []).map((f:any)=>({
+          fieldDefinitions: (obj.fieldDefinitions || []).map((f: any) => ({
             name: f.name || f.key,
             key: f.key,
             type: typeof f.type === "string" ? f.type : (f.type?.name || "single_line_text_field"),
@@ -173,16 +173,16 @@ async function importDefinitionsFromFiles(admin: ShopifyAdmin, sourceDomain: str
   for (const [key, def] of mfDefs.entries()) {
     if (existingMfKeys.has(key)) continue;
     try {
-      const res:any = await admin.gql(M_METAFIELD_DEF_CREATE, { def });
+      const res: any = await admin.gql(M_METAFIELD_DEF_CREATE, { def });
       const ue = res?.data?.metafieldDefinitionCreate?.userErrors || [];
       if (ue.length) {
-        const msg = ue.map((x:any)=>x.message).join(" | ");
+        const msg = ue.map((x: any) => x.message).join(" | ");
         if (/already exists|Key is in use|Access denied/i.test(msg)) continue;
         if (/validations.*Field is not defined/i.test(msg)) {
           await admin.gql(M_METAFIELD_DEF_CREATE, { def: { ...def, validations: [] } });
         }
       }
-    } catch {}
+    } catch { }
     await sleep(120);
   }
 
@@ -289,10 +289,20 @@ export async function importAll({
   try {
     const moPath = path.resolve(`./data_exported/${sourceDomain}/metaobjects.jsonl`);
     const entries = readMetaobjectsJsonl(moPath);
-    for (const en of entries) {
-      try { await upsertMetaobjectEntry(admin, en); } catch (e) { console.warn("MO entry:", en.type, en.handle, e); }
+    // Heartbeat mỗi 10s
+    const hb = setInterval(() => console.log(`[heartbeat] metaobjects remaining ~${entries.length}`), 10_000);
+
+    for (let i = 0; i < entries.length; i++) {
+      const en = entries[i];
+      console.log(`[MO ${i + 1}/${entries.length}] ${en.type} :: ${en.handle}`);
+      try {
+        await upsertMetaobjectEntry(admin, en);
+      } catch (e) {
+        console.warn(`MO entry: ${en.type} ${en.handle} Error:`, (e as any)?.message || e);
+      }
       await sleep(120);
     }
+    clearInterval(hb);
   } catch (e) { console.warn("metaobjects import warn:", (e as any)?.message || e); }
 
   console.log("✅ Import completed (definitions + all entity metafields + metaobject entries).");

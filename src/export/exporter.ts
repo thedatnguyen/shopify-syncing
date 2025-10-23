@@ -1,15 +1,15 @@
 import path from "path";
 import { ShopifyAdmin } from "../lib/shopify.js";
 import { ensureDir, writeFile, appendFile, safeDomain } from "../lib/fs.js";
-import { Q_DEFINITIONS_BATCH_1 } from "../queries/definitionsBatch1.js";
-import { Q_DEFINITIONS_BATCH_2 } from "../queries/definitionsBatch2.js";
-import { Q_PRODUCTS } from "../queries/products.js";
-import { Q_COLLECTIONS } from "../queries/collections.js";
-import { Q_PAGES } from "../queries/pages.js";
-import { Q_BLOGS } from "../queries/blogs.js";
-import { Q_CUSTOMERS } from "../queries/customers.js";
-import { Q_SHOP } from "../queries/shop.js";
-import { Q_METAOBJECTS_BY_TYPE } from "../queries/metaobjectsByType.js";
+import { Q_DEFINITIONS_BATCH_1 } from "../queries/export/definitionsBatch1.js";
+import { Q_DEFINITIONS_BATCH_2 } from "../queries/export/definitionsBatch2.js";
+import { Q_PRODUCTS } from "../queries/export/products.js";
+import { Q_COLLECTIONS } from "../queries/export/collections.js";
+import { Q_PAGES } from "../queries/export/pages.js";
+import { Q_BLOGS } from "../queries/export/blogs.js";
+import { Q_CUSTOMERS } from "../queries/export/customers.js";
+import { Q_SHOP } from "../queries/export/shop.js";
+import { Q_METAOBJECTS_BY_TYPE } from "../queries/export/metaobjectsByType.js";
 
 export async function exportAll({
   sourceDomain,
