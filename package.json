@@ -1,0 +1,29 @@
+{
+  "name": "shopify-syncing",
+  "version": "1.0.0",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "export": "node dist/cli/export.js",
+    "dev:export": "tsx src/cli/export.ts",
+    "dev:import": "tsx src/cli/import.ts",
+    "import": "node dist/cli/import.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.6.1",
+    "fs": "^0.0.1-security",
+    "path": "^0.12.7",
+    "undici": "^6.22.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.9.1",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3"
+  },
+  "main": "index.js",
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": ""
+}
