@@ -34,6 +34,7 @@ import {
   Q_CUSTOMER_BY_EMAIL,
   Q_VARIANT_BY_SKU
 } from "../queries/import/owners.js";
+import { ImportReport } from "./report.js";
 
 /* ---------- helpers: lookups ---------- */
 async function getShopId(admin: ShopifyAdmin) {
@@ -204,6 +205,10 @@ export async function importAll({
 }: { sourceDomain: string; targetDomain: string; targetToken: string; }) {
   const admin = new ShopifyAdmin(targetDomain, targetToken);
 
+  const report = new ImportReport(targetDomain, process.env.REPORT_RUN_ID);
+  report.summary({ startedAt: new Date().toISOString(), sourceDomain, targetDomain });
+
+
   // 0) definitions first
   await importDefinitionsFromFiles(admin, sourceDomain);
 
@@ -212,8 +217,15 @@ export async function importAll({
     const shopMFPath = path.resolve(`./data_exported/${sourceDomain}/shop.jsonl`);
     const shopMf = readShopJsonl(shopMFPath);
     const shopId = await getShopId(admin);
-    if (shopId && shopMf.length) await setMetafields(admin, shopId, shopMf);
-  } catch (e) { console.warn("shop import warn:", (e as any)?.message || e); }
+    if (shopId && shopMf.length) {
+      await setMetafields(admin, shopId, shopMf);
+      report.appendJSONL("shop_metafields.jsonl", { ownerId: shopId, count: shopMf.length, status: "ok" });
+    }
+  } catch (e) {
+    const msg = (e as any)?.message || String(e);
+    report.appendJSONL("errors.jsonl", { scope: "shop", error: msg });
+    console.warn("shop import warn:", msg);
+  }
 
   // 2) products + variants
   try {
@@ -222,16 +234,30 @@ export async function importAll({
     for (const p of products) {
       const pid = await getProductId(admin, p.handle);
       if (pid) {
-        if (p.metafields.length) await setMetafields(admin, pid, p.metafields);
+        if (p.metafields.length) {
+          await setMetafields(admin, pid, p.metafields);
+          report.appendJSONL("products_metafields.jsonl", { handle: p.handle, ownerId: pid, count: p.metafields.length, status: "ok" });
+        }
         for (const v of p.variants) {
           const vid = await getVariantIdBySku(admin, v.sku);
-          if (vid && v.metafields.length) await setMetafields(admin, vid, v.metafields);
+          if (vid && v.metafields.length) {
+            await setMetafields(admin, vid, v.metafields);
+            report.appendJSONL("variants_metafields.jsonl", { productHandle: p.handle, sku: v.sku, ownerId: vid, count: v.metafields.length, status: "ok" });
+          } else if (!vid && v.metafields.length) {
+            report.appendJSONL("errors.jsonl", { scope: "variant", productHandle: p.handle, sku: v.sku, error: "variant_not_found" });
+          }
           await sleep(120);
         }
+      } else {
+        report.appendJSONL("errors.jsonl", { scope: "product", handle: p.handle, error: "product_not_found" });
       }
       await sleep(120);
     }
-  } catch (e) { console.warn("products import warn:", (e as any)?.message || e); }
+  } catch (e) {
+    const msg = (e as any)?.message || String(e);
+    report.appendJSONL("errors.jsonl", { scope: "products_block", error: msg });
+    console.warn("products import warn:", msg);
+  }
 
   // 3) collections
   try {
@@ -239,7 +265,12 @@ export async function importAll({
     const cols = readCollectionsJsonl(colPath);
     for (const c of cols) {
       const cid = await getCollectionId(admin, c.handle);
-      if (cid && c.metafields.length) await setMetafields(admin, cid, c.metafields);
+      if (cid && c.metafields.length) {
+        await setMetafields(admin, cid, c.metafields);
+        report.appendJSONL("collections_metafields.jsonl", { handle: c.handle, ownerId: cid, count: c.metafields.length, status: "ok" });
+      } else if (!cid) {
+        report.appendJSONL("errors.jsonl", { scope: "collection", handle: c.handle, error: "collection_not_found" });
+      }
       await sleep(120);
     }
   } catch (e) { console.warn("collections import warn:", (e as any)?.message || e); }
@@ -250,7 +281,12 @@ export async function importAll({
     const pages = readPagesJsonl(pagePath);
     for (const pg of pages) {
       const id = await getPageId(admin, pg.handle);
-      if (id && pg.metafields.length) await setMetafields(admin, id, pg.metafields);
+      if (id && pg.metafields.length) {
+        await setMetafields(admin, id, pg.metafields);
+        report.appendJSONL("pages_metafields.jsonl", { handle: pg.handle, ownerId: id, count: pg.metafields.length, status: "ok" });
+      } else if (!id) {
+        report.appendJSONL("errors.jsonl", { scope: "page", handle: pg.handle, error: "page_not_found" });
+      }
       await sleep(120);
     }
   } catch (e) { console.warn("pages import warn:", (e as any)?.message || e); }
@@ -262,14 +298,25 @@ export async function importAll({
     // blogs
     for (const b of blogs) {
       const bid = await getBlogId(admin, b.handle);
-      if (bid && b.metafields.length) await setMetafields(admin, bid, b.metafields);
+      if (bid && b.metafields.length) {
+        await setMetafields(admin, bid, b.metafields);
+        report.appendJSONL("blogs_metafields.jsonl", { handle: b.handle, ownerId: bid, count: b.metafields.length, status: "ok" });
+      } else if (!bid) {
+        report.appendJSONL("errors.jsonl", { scope: "blog", handle: b.handle, error: "blog_not_found" });
+      }
       await sleep(120);
     }
     // articles
     for (const a of articles) {
       if (!a.blogHandle) continue;
       const aid = await getArticleId(admin, a.blogHandle, a.handle);
-      if (aid && a.metafields.length) await setMetafields(admin, aid, a.metafields);
+      if (aid && a.metafields.length) {
+        await setMetafields(admin, aid, a.metafields);
+        report.appendJSONL("articles_metafields.jsonl", { blogHandle: a.blogHandle, handle: a.handle, ownerId: aid, count: a.metafields.length, status: "ok" });
+      } else if (!aid) {
+        report.appendJSONL("errors.jsonl", { scope: "article", blogHandle: a.blogHandle, handle: a.handle, error: "article_not_found" });
+      }
+
       await sleep(120);
     }
   } catch (e) { console.warn("blogs/articles import warn:", (e as any)?.message || e); }
@@ -280,7 +327,13 @@ export async function importAll({
     const customers = readCustomersJsonl(cusPath);
     for (const c of customers) {
       const id = await getCustomerIdByEmail(admin, c.email);
-      if (id && c.metafields.length) await setMetafields(admin, id, c.metafields);
+      if (id && c.metafields.length) {
+        await setMetafields(admin, id, c.metafields);
+        report.appendJSONL("customers_metafields.jsonl", { email: c.email, ownerId: id, count: c.metafields.length, status: "ok" });
+      } else if (!id) {
+        report.appendJSONL("errors.jsonl", { scope: "customer", email: c.email, error: "customer_not_found" });
+      }
+
       await sleep(120);
     }
   } catch (e) { console.warn("customers import warn:", (e as any)?.message || e); }
@@ -296,12 +349,19 @@ export async function importAll({
       const en = entries[i];
       console.log(`[MO ${i + 1}/${entries.length}] ${en.type} :: ${en.handle}`);
       try {
-        await upsertMetaobjectEntry(admin, en);
+        const res = await upsertMetaobjectEntry(admin, en);
+        report.appendJSONL("metaobjects_entries.jsonl", { type: en.type, handle: en.handle, status: res });
       } catch (e) {
-        console.warn(`MO entry: ${en.type} ${en.handle} Error:`, (e as any)?.message || e);
+        const msg = (e as any)?.message || String(e);
+        report.appendJSONL("errors.jsonl", { scope: "metaobject_entry", type: en.type, handle: en.handle, error: msg });
+        console.warn(`MO entry: ${en.type} ${en.handle} Error:`, msg);
       }
       await sleep(120);
     }
+
+    report.summary({ finishedAt: new Date().toISOString() });
+    console.log(`📄 Reports written to: ${report.dir}`);
+    
     clearInterval(hb);
   } catch (e) { console.warn("metaobjects import warn:", (e as any)?.message || e); }
 
